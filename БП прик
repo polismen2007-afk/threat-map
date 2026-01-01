@@ -1,0 +1,16 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "OBJ-1",
+        "name": "Об'єкт 1"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [50.163975, 37.340916]
+      }
+    }
+  ]
+}
