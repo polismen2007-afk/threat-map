@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <title>Оцінка загроз об'єктам</title>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Turf.js -->
+  <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #map { height: 100vh; }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script>
+  // =============================
+  // 1. ІНІЦІАЛІЗАЦІЯ КАРТИ
+  // =============================
+  const map = L.map('map').setView([49.0, 32.0], 6);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  let frontlineLayer;
+
+  // =============================
+  // 2. ФУНКЦІЇ
+  // =============================
+
+  function getThreat(distance) {
+    if (distance < 10) return { text: '🔴 Висока', color: 'red' };
+    if (distance < 30) return { text: '🟡 Середня', color: 'orange' };
+    return { text: '🟢 Низька', color: 'green' };
+  }
+
+  function loadFrontline() {
+    fetch('frontline.geojson?_=' + Date.now())
+      .then(res => res.json())
+      .then(data => {
+        if (frontlineLayer) map.removeLayer(frontlineLayer);
+
+        frontlineLayer = L.geoJSON(data, {
+          style: {
+            color: 'red',
+            weight: 3
+          }
+        }).addTo(map);
+
+        loadObjects(data);
+      });
+  }
+
+  function loadObjects(frontlineData) {
+    fetch('objects.geojson')
+      .then(res => res.json())
+      .then(objects => {
+        L.geoJSON(objects, {
+          pointToLayer: function (feature, latlng) {
+            const point = turf.point(feature.geometry.coordinates);
+            const line = frontlineData.features[0];
+
+            const distance = turf.pointToLineDistance(
+              point,
+              line,
+              { units: 'kilometers' }
+            );
+
+            const threat = getThreat(distance);
+
+            const marker = L.circleMarker(latlng, {
+              radius: 8,
+              fillColor: threat.color,
+              color: '#000',
+              weight: 1,
+              fillOpacity: 0.9
+            });
+
+            marker.bindPopup(`
+              <b>${feature.properties.id}</b><br>
+              ${feature.properties.name}<br><br>
+              📏 До фронту: <b>${distance.toFixed(1)} км</b><br>
+              ⚠️ Загроза: <b>${threat.text}</b><br>
+              🕒 Оновлено: ${new Date().toLocaleTimeString()}
+            `);
+
+            return marker;
+          }
+        }).addTo(map);
+      });
+  }
+
+  function loadZones() {
+    fetch('zones.geojson')
+      .then(res => res.json())
+      .then(zones => {
+        L.geoJSON(zones, {
+          style: {
+            color: 'orange',
+            weight: 2,
+            fillOpacity: 0.2
+          }
+        }).addTo(map);
+      });
+  }
+
+  // =============================
+  // 3. ЗАПУСК
+  // =============================
+  loadZones();
+  loadFrontline();
+
+  // автооновлення фронту кожні 15 хв
+  setInterval(loadFrontline, 15 * 60 * 1000);
+</script>
+
+</body>
+</html>
